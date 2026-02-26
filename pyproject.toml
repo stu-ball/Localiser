@@ -1,0 +1,14 @@
+[project]
+name = "localiser"
+version = "0.1.0"
+description = "MongoDB locale translator using LM Studio"
+authors = ["Stu Ball <stu.ball@example.com>"]
+
+[tool.poetry.dependencies]
+pymongo = "^4.6.0"
+httpx = "^0.27.0"
+pydantic = "^2.6.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
