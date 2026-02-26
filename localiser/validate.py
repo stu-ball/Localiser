@@ -17,7 +17,7 @@ class ValidationError(RuntimeError):
 def _is_internal_field(path: str) -> bool:
     # Ignore app-managed fields that may not be present in LLM output.
     # When dict key sets differ, our diff uses a synthetic "{keys}" suffix.
-    return path.startswith("_localiser") or path.startswith("_localiser{keys}")
+    return path.startswith("_localiser")
 
 
 def _is_primitive(v: Any) -> bool:
@@ -98,9 +98,17 @@ def validate_and_build_patch(
             raise ValidationError(f"Structure changed at {path}")
 
         if "{keys}" in path:
-            # Allow missing/extra internal fields only.
-            if _is_internal_field(path):
-                continue
+            # Allow missing/extra internal fields only (when comparing keysets).
+            # The diff encodes this as e.g. "template{keys}" or "{keys}".
+            # We only allow keyset drift if every missing/extra key is internal.
+            if isinstance(ov, set) and isinstance(tv, set):
+                missing = set(ov) - set(tv)
+                extra = set(tv) - set(ov)
+                if missing or extra:
+                    if all(str(k).startswith("_localiser") for k in missing) and all(
+                        str(k).startswith("_localiser") for k in extra
+                    ):
+                        continue
             raise ValidationError(f"Structure changed at {path}")
 
         # allow BSON/native types becoming strings in the translated output (we won't patch these)
