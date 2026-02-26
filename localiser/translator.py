@@ -7,10 +7,8 @@ from bson import json_util
 
 from .llm_client import LlmSettings, chat_completion_json
 
-
 class TranslationError(RuntimeError):
     pass
-
 
 def build_system_prompt(*, source_locale: str, target_locale: str, locale_field: str) -> str:
     return (
@@ -26,25 +24,21 @@ def build_system_prompt(*, source_locale: str, target_locale: str, locale_field:
         "Preserve markup: keep HTML/Markdown tags and translate only visible text. "
         f"Do not modify the locale field '{locale_field}' in the returned document; it will be set by the application. "
         "Return STRICT JSON (no markdown, no code fences, no comments, no trailing commas). "
-        "Return ONLY a JSON object matching this schema, with no extra wrapper keys: "
-        "{\"translated_document\": <object>, \"changed_paths\": <array of strings>, \"notes\": <string or null>}"
+        "Respond ONLY with a single valid JSON object matching this schema, with no extra wrapper keys, no explanations, and no extra text: "
+        '{"translated_document": <object>, "changed_paths": <array of strings>, "notes": <string or null>}'
     )
-
 
 def _json_default(o: Any):
     # Make common BSON-ish / datetime values serialisable for the prompt.
     # This is for prompt transport only; it does not modify MongoDB.
     try:
         import datetime
-
         if isinstance(o, (datetime.datetime, datetime.date)):
             return o.isoformat()
     except Exception:
         pass
-
     # Fallback
     return str(o)
-
 
 def build_user_prompt(*, doc: dict[str, Any]) -> str:
     # Use MongoDB/BSON-aware JSON conversion so types like datetime/ObjectId are serialisable.
@@ -52,7 +46,6 @@ def build_user_prompt(*, doc: dict[str, Any]) -> str:
     return "Translate this document following the rules above. Document JSON:\n" + json_util.dumps(
         doc, ensure_ascii=False
     )
-
 
 def translate_document(
     *,

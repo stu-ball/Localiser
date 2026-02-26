@@ -4,7 +4,7 @@ Basic Python app that processes one MongoDB document at a time where `locale == 
 
 ## Requirements
 - Python 3.11+
-- MongoDB доступ
+- MongoDB
 - LM Studio running with OpenAI-compatible server enabled (e.g. `http://localhost:1234/v1`)
 
 ## Environment variables
