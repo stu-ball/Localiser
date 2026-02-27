@@ -77,12 +77,25 @@ def main(argv: list[str] | None = None) -> int:
                 target_locale=s.target_locale,
                 locale_field=s.mongodb_locale_field,
             )
-            _log({"event": "llm_translate_done", "_id": str(_id)})
+            # Helpful visibility when the model returns the doc unchanged.
+            _log(
+                {
+                    "event": "llm_translate_done",
+                    "_id": str(_id),
+                    "translated_same_as_input": translated == doc,
+                }
+            )
             diff = validate_and_build_patch(
                 original_doc=doc,
                 translated_doc=translated,
                 locale_field=s.mongodb_locale_field,
             )
+
+            # Never advance locale unless we actually changed some user-facing strings.
+            if len(diff.set_ops) == 0:
+                raise ValidationError(
+                    "No translatable strings changed; refusing to set locale to target."
+                )
 
             _log(
                 {
@@ -110,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             processed += 1
 
         except (ValidationError, Exception) as e:
+            processed += 1
             _log({"event": "error", "_id": str(_id), "message": str(e)})
 
             # Prevent hot-looping the same problematic documents.

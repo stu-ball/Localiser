@@ -32,7 +32,13 @@ def _strip_json_comments(s: str) -> str:
 def _extract_json_object(text: str) -> str:
     """Best-effort extraction of a JSON object from model output.
 
-    LM Studio/models sometimes wrap JSON in ```json fences or add comments.
+    LM Studio/models sometimes:
+    - wrap JSON in ```json fences
+    - prepend/append extra text
+    - return multiple JSON objects back-to-back
+    - include stray braces in strings (e.g. in templates)
+
+    We try to extract the FIRST valid top-level JSON object.
     """
 
     s = text.strip()
@@ -42,13 +48,37 @@ def _extract_json_object(text: str) -> str:
         s = re.sub(r"\n```\s*$", "", s)
         s = s.strip()
 
-    # If still not pure JSON, attempt to grab first {...} block.
-    if not s.startswith("{"):
-        m = re.search(r"\{[\s\S]*\}", s)
-        if m:
-            s = m.group(0)
-
     s = _strip_json_comments(s).strip()
+
+    # Fast-path: already pure JSON object.
+    if s.startswith("{"):
+        try:
+            json.loads(s)
+            return s
+        except Exception:
+            pass
+
+    # Robust extraction: find the first balanced JSON object using the JSON decoder.
+    decoder = json.JSONDecoder()
+    idx = 0
+    while True:
+        brace = s.find("{", idx)
+        if brace == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(s[brace:])
+            if isinstance(obj, dict):
+                return s[brace : brace + end]
+        except Exception:
+            idx = brace + 1
+            continue
+        idx = brace + 1
+
+    # Last resort: greedy brace capture (may still fail at json.loads call site)
+    m = re.search(r"\{[\s\S]*\}", s)
+    if m:
+        return m.group(0).strip()
+
     return s
 
 

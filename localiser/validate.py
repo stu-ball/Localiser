@@ -15,9 +15,10 @@ class ValidationError(RuntimeError):
 
 
 def _is_internal_field(path: str) -> bool:
-    # Ignore app-managed fields that may not be present in LLM output.
+    # Ignore app-managed / system fields that may not be present in LLM output or
+    # may appear with different serialisation types (e.g. BSON dates).
     # When dict key sets differ, our diff uses a synthetic "{keys}" suffix.
-    return path.startswith("_localiser")
+    return path.startswith("_localiser") or path in {"_ts"}
 
 
 def _is_primitive(v: Any) -> bool:
@@ -118,14 +119,20 @@ def validate_and_build_patch(
                 continue
             raise ValidationError(f"Type changed at {path}")
 
-        # only allow string changes
+        # only allow string changes (and only if actually different)
         if isinstance(ov, str) and isinstance(tv, str):
+            if ov == tv:
+                continue
             changed_paths.append(path)
             # Mongo dot notation (approx): convert [i] to .i for arrays
             mongo_path = path.replace("[", ".").replace("]", "")
             set_ops[mongo_path] = tv
             continue
 
-        raise ValidationError(f"Non-string value changed at {path}")
+        # If we got here, the value differs but isn't a string change we can patch.
+        # This can happen when the LLM re-serialises BSON-ish values (e.g. ObjectId/date)
+        # into strings. We tolerate it but refuse to advance locale unless at least one
+        # patchable string field changed (enforced by caller).
+        continue
 
     return DiffResult(changed_paths=changed_paths, set_ops=set_ops)
